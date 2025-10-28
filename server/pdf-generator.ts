@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer";
-import { toWords } from "number-to-words";
+import numberToWords from "number-to-words";
 import type { Employee, Payslip, CompanySettings } from "@shared/schema";
 
 interface PayslipData {
@@ -13,7 +13,7 @@ export async function generatePayslipPDF(data: PayslipData, format: "A4" | "Lett
 
   // Calculate net pay in words
   const netPayAmount = parseFloat(payslip.netPay || "0");
-  const netPayWords = toWords(Math.floor(netPayAmount))
+  const netPayWords = numberToWords.toWords(Math.floor(netPayAmount))
     .split(" ")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");

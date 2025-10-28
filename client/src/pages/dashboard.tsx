@@ -1,28 +1,40 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Upload, Users, TrendingUp } from "lucide-react";
+import { FileText, Upload, Users } from "lucide-react";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  // Mock stats - will be replaced with real data
+  const { data: employees, isLoading: employeesLoading } = useQuery<any[]>({
+    queryKey: ["/api/employees"],
+  });
+
+  const { data: payslips, isLoading: payslipsLoading } = useQuery<any[]>({
+    queryKey: ["/api/payslips"],
+  });
+
   const stats = [
     {
       title: "Total Payslips",
-      value: "0",
+      value: payslipsLoading ? "..." : (payslips?.length || 0).toString(),
       icon: FileText,
-      description: "Generated this month",
+      description: "Generated payslips",
+      loading: payslipsLoading,
     },
     {
       title: "Active Employees",
-      value: "0",
+      value: employeesLoading ? "..." : (employees?.length || 0).toString(),
       icon: Users,
       description: "Registered in system",
+      loading: employeesLoading,
     },
     {
       title: "Bulk Uploads",
       value: "0",
       icon: Upload,
       description: "Completed",
+      loading: false,
     },
   ];
 
@@ -48,7 +60,11 @@ export default function Dashboard() {
                 <stat.icon className="w-4 h-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-foreground">{stat.value}</div>
+                {stat.loading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <div className="text-2xl font-semibold text-foreground">{stat.value}</div>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
               </CardContent>
             </Card>

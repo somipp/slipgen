@@ -4,13 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Upload, Download, FileText, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 type Step = "upload" | "mapping" | "validation" | "generation";
 
 export default function BulkUpload() {
   const [currentStep, setCurrentStep] = useState<Step>("upload");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<any[]>([]);
+  const [successCount, setSuccessCount] = useState(0);
+  const [errorCount, setErrorCount] = useState(0);
+  const { toast } = useToast();
 
   const steps = [
     { id: "upload", label: "Upload CSV", number: 1 },
@@ -21,10 +28,147 @@ export default function BulkUpload() {
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
+    if (!file) return;
+
+    setUploadedFile(file);
+    setIsProcessing(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("csv", file);
+
+      const response = await fetch("/api/upload/csv", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload CSV");
+      }
+
+      const result = await response.json();
+      setCsvData(result.data);
+      setCsvHeaders(result.headers);
+
+      toast({
+        title: "Success",
+        description: `CSV file uploaded successfully. ${result.rowCount} rows found.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to upload CSV",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch("/api/csv-template");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "payslip-template.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleValidation = () => {
+    // Simple validation check
+    const errors: any[] = [];
+    
+    csvData.forEach((row, index) => {
+      if (!row.employeeNo) {
+        errors.push({ row: index + 1, field: "employeeNo", message: "Employee number is required" });
+      }
+      if (!row.name) {
+        errors.push({ row: index + 1, field: "name", message: "Name is required" });
+      }
+      if (!row.payPeriod) {
+        errors.push({ row: index + 1, field: "payPeriod", message: "Pay period is required" });
+      }
+    });
+
+    setValidationErrors(errors);
+    
+    if (errors.length === 0) {
+      toast({
+        title: "Success",
+        description: "All rows validated successfully",
+      });
+    } else {
+      toast({
+        title: "Validation Errors",
+        description: `Found ${errors.length} errors in CSV data`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkGeneration = async () => {
+    setIsProcessing(true);
+    setCurrentStep("generation");
+
+    try {
+      const response = await fetch("/api/payslips/bulk-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csvData,
+          format: "A4",
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to generate payslips");
+      }
+
+      // Get success/error counts from headers
+      const successCount = parseInt(response.headers.get("X-Success-Count") || "0");
+      const errorCount = parseInt(response.headers.get("X-Error-Count") || "0");
+      
+      setSuccessCount(successCount);
+      setErrorCount(errorCount);
+
+      // Download ZIP file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `payslips-bulk-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: `Generated ${successCount} payslips successfully. ${errorCount > 0 ? `${errorCount} failed.` : ""}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate payslips",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -98,14 +242,25 @@ export default function BulkUpload() {
                   onChange={handleFileChange}
                   data-testid="input-file-upload"
                 />
-                <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-base font-medium text-foreground mb-2">
-                  Drop CSV file or click to browse
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Supported formats: .csv, .xlsx (Max 10MB)
-                </p>
-                {uploadedFile && (
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-12 h-12 text-primary mx-auto mb-4 animate-spin" />
+                    <h3 className="text-base font-medium text-foreground mb-2">
+                      Processing CSV file...
+                    </h3>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-base font-medium text-foreground mb-2">
+                      Drop CSV file or click to browse
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Supported formats: .csv, .xlsx (Max 10MB)
+                    </p>
+                  </>
+                )}
+                {uploadedFile && !isProcessing && (
                   <Badge variant="secondary" className="mt-2">
                     <FileText className="w-3 h-3 mr-1" />
                     {uploadedFile.name}
@@ -126,61 +281,18 @@ export default function BulkUpload() {
               </div>
 
               <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" data-testid="button-download-template">
+                <Button variant="outline" onClick={handleDownloadTemplate} data-testid="button-download-template">
                   <Download className="w-4 h-4 mr-2" />
                   Download Sample CSV
                 </Button>
                 <Button
-                  disabled={!uploadedFile}
-                  onClick={() => setCurrentStep("mapping")}
-                  data-testid="button-next-mapping"
+                  disabled={!uploadedFile || isProcessing}
+                  onClick={() => {
+                    handleValidation();
+                    setCurrentStep("validation");
+                  }}
+                  data-testid="button-next-validation"
                 >
-                  Continue to Mapping
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {currentStep === "mapping" && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Step 2: Map CSV Columns to Payslip Fields</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-sm text-muted-foreground mb-4">
-                Map your CSV column names to the corresponding payslip fields
-              </div>
-
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {[
-                  "Employee Number",
-                  "Name",
-                  "Pay Period",
-                  "Pay Date",
-                  "Basic Salary (Full)",
-                  "Basic Salary (Actual)",
-                  "HRA (Full)",
-                  "HRA (Actual)",
-                  "PF Deduction",
-                  "Professional Tax",
-                ].map((field) => (
-                  <div key={field} className="grid grid-cols-2 gap-4 items-center p-3 bg-muted/30 rounded-md">
-                    <div className="text-sm font-medium">{field}</div>
-                    <select className="text-sm border border-input bg-background rounded-md px-3 py-2">
-                      <option value="">Auto-detect</option>
-                      <option value="col1">Column A</option>
-                      <option value="col2">Column B</option>
-                    </select>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" onClick={() => setCurrentStep("upload")} data-testid="button-back-upload">
-                  Back
-                </Button>
-                <Button onClick={() => setCurrentStep("validation")} data-testid="button-next-validation">
                   Continue to Validation
                 </Button>
               </div>
@@ -191,31 +303,78 @@ export default function BulkUpload() {
         {currentStep === "validation" && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Step 3: Validate Data</CardTitle>
+              <CardTitle className="text-lg">Step 2: Validate Data</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-md">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Validation Complete</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    0 rows validated successfully, 0 errors found
-                  </p>
+              {validationErrors.length === 0 ? (
+                <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-md">
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Validation Complete</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {csvData.length} rows validated successfully, 0 errors found
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center gap-3 p-4 bg-destructive/10 border border-destructive/20 rounded-md">
+                  <AlertCircle className="w-5 h-5 text-destructive" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Validation Errors Found</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {validationErrors.length} errors found in CSV data
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="border border-border rounded-md overflow-hidden">
                 <div className="bg-muted px-4 py-2 text-sm font-medium">Preview (First 5 rows)</div>
-                <div className="p-4 text-center text-sm text-muted-foreground">
-                  No data to preview
+                <div className="overflow-x-auto">
+                  {csvData.length > 0 ? (
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          {csvHeaders.slice(0, 5).map((header) => (
+                            <th key={header} className="px-3 py-2 text-left">
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvData.slice(0, 5).map((row, index) => (
+                          <tr key={index} className="border-t">
+                            {csvHeaders.slice(0, 5).map((header) => (
+                              <td key={header} className="px-3 py-2">
+                                {row[header]}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      No data to preview
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" onClick={() => setCurrentStep("mapping")} data-testid="button-back-mapping">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentStep("upload")}
+                  data-testid="button-back-upload"
+                >
                   Back
                 </Button>
-                <Button onClick={() => setCurrentStep("generation")} data-testid="button-next-generation">
+                <Button
+                  onClick={handleBulkGeneration}
+                  disabled={validationErrors.length > 0}
+                  data-testid="button-start-generation"
+                >
                   Start Generation
                 </Button>
               </div>
@@ -226,34 +385,57 @@ export default function BulkUpload() {
         {currentStep === "generation" && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Step 4: Generate PDFs</CardTitle>
+              <CardTitle className="text-lg">Step 3: Generate PDFs</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Progress</span>
-                  <span className="font-medium">0 / 0</span>
-                </div>
-                <Progress value={0} className="h-2" />
-                <p className="text-xs text-muted-foreground">Processing payslips...</p>
-              </div>
+              {isProcessing ? (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Progress</span>
+                      <span className="font-medium">Generating...</span>
+                    </div>
+                    <Progress value={50} className="h-2" />
+                    <p className="text-xs text-muted-foreground">Processing payslips...</p>
+                  </div>
 
-              <div className="p-8 text-center border border-dashed border-border rounded-md">
-                <Loader2 className="w-8 h-8 text-muted-foreground mx-auto mb-3 animate-spin" />
-                <p className="text-sm text-muted-foreground">
-                  Preparing to generate payslips...
-                </p>
-              </div>
+                  <div className="p-8 text-center border border-dashed border-border rounded-md">
+                    <Loader2 className="w-8 h-8 text-primary mx-auto mb-3 animate-spin" />
+                    <p className="text-sm text-muted-foreground">
+                      Generating payslips, please wait...
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-md">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Generation Complete</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {successCount} payslips generated successfully
+                        {errorCount > 0 && `, ${errorCount} failed`}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="flex items-center justify-between pt-4">
-                <Button variant="outline" disabled={isProcessing} data-testid="button-cancel-generation">
-                  Cancel
-                </Button>
-                <Button disabled data-testid="button-download-zip">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download ZIP
-                </Button>
-              </div>
+                  <div className="flex items-center justify-center gap-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCurrentStep("upload");
+                        setUploadedFile(null);
+                        setCsvData([]);
+                        setSuccessCount(0);
+                        setErrorCount(0);
+                      }}
+                      data-testid="button-upload-another"
+                    >
+                      Upload Another File
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
