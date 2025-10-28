@@ -1,0 +1,94 @@
+Project: Payslip Generator Web App for Hanva Technologies Pvt Ltd
+
+Goal:
+Build a secure, responsive web application that generates downloadable, print-ready payslip PDFs that *match exactly* the provided reference image layout. The app must support single and bulk generation, reusable templates, company logo, and CSV/Excel import/export.
+
+High-level requirements:
+1. Exact PDF output:
+   - The generated PDF must match the shared image visually (fonts, spacing, alignment, borders, table layout, labels, and decimal formatting).
+   - Support A4 portrait and US Letter export options.
+   - PDFs must be high-resolution (300 DPI) and print-ready.
+
+2. Fields (include every field visible in the shared image; if any label in the image is ambiguous, implement a flexible field editor):
+   - Company name, company address, company GST / registration (if present in image)
+   - Employee name, employee ID, designation, department, PAN, UAN, bank details (account + IFSC), employee address (if shown)
+   - Pay period (month/year), pay date, pay slip number
+   - Earnings breakdown (basic, HRA, allowances, overtime, other earnings) — show label, amount, and total earnings
+   - Deductions breakdown (PF, ESI, tax, professional tax, loan, other deductions) — label, amount, total deductions
+   - Net pay (numeric) and Net pay (in words)
+   - Employer contributions (if present in image)
+   - Leave / attendance summary (if present in image)
+   - Notes, authorized signatory, signature area (support uploading signature image)
+   - Footer text and any legal text visible in the image
+   - Company logo (top-left or as per image) — must accept PNG (with transparent background) and JPG
+
+3. User flows & features:
+   - Single payslip creation: form-based entry with inline validation and live preview.
+   - Bulk generation / Batch processing: upload CSV/Excel file with mapping UI to map columns to fields, validate rows, generate individual PDFs or a combined ZIP file of PDFs.
+   - Save & manage templates: save employee profiles and payslip templates; support editing, cloning, and deletion.
+   - Reusable employee database: add/edit/delete employees; auto-fill form from saved employee.
+   - Export/Import: export employee database as CSV/Excel; import via CSV/Excel with sample template.
+   - Role-based access: Admin (full access), HR (generate & download), Viewer (download only). Authentication via OAuth/SSO or email+password.
+   - Audit log: track who generated/ downloaded which payslip + timestamp.
+   - Preview: in-browser preview (WYSIWYG) before PDF export; allow toggling to "exact print preview".
+   - Signature & stamp: enable uploading signature and stamp images; option to auto-place them into the PDF at the correct location.
+   - Company branding: upload logo, set company name/address, choose primary font for PDFs (must match image font or closest).
+   - PDF download buttons: single PDF, batch ZIP, or combined multi-payslip PDF.
+
+4. UX/UI:
+   - Responsive and modern UI, simple form flow for single payslip and a bulk upload wizard.
+   - Live PDF preview area showing close visual match to final PDF.
+   - Accessibility: keyboard navigation, labels for screen readers, color contrast compliant.
+
+5. Validation & error handling:
+   - Field-level validation (required fields, numeric formats, currency formatting).
+   - Bulk upload validation with a downloadable error report (rows with issues).
+   - Graceful error messages for failed PDF generation, invalid CSV, or missing assets.
+
+6. Security & privacy:
+   - HTTPS required; enforce strong password policy and optional 2FA.
+   - Store employee data encrypted at rest; access-controlled.
+   - Option to purge sensitive data after X days (configurable).
+   - Role-based access controls and audit logs as above.
+   - Rate-limiting for batch exports to prevent abuse.
+
+7. Tech stack suggestions (optional — implementer can propose changes):
+   - Frontend: React + TypeScript, Tailwind CSS (or design system of choice). Use client-side PDF preview (html2pdf/pdf-lib) or server-rendered (Puppeteer/Headless Chrome) for exact visual parity.
+   - Backend: Node.js/Express or Next.js API routes (or Python Flask/Django), PostgreSQL for data, Redis for job queue for batch generation.
+   - PDF rendering: Server-side HTML-to-PDF with headless Chrome (Puppeteer) or wkhtmltopdf for pixel-perfect output. Ensure fonts and CSS are embedded.
+   - Storage: S3-compatible object storage for logo/signature and generated PDFs.
+   - Authentication: Clerk/Auth0/Supabase Auth/OIDC.
+   - Containerization: Docker + Kubernetes or simple Docker Compose for deployment.
+   - Optional: Worker queue (BullMQ/Sidekiq) for batch processing and progress reporting.
+
+8. Non-functional requirements:
+   - Scalability to handle batch jobs of several thousand payslips (background queue).
+   - PDFs generated within reasonable time (provide progress UI for large batches).
+   - Tests: unit tests for mapping/validation logic, integration tests for PDF generation, e2e test for upload-to-download flow.
+
+9. Acceptance criteria (deliverable must satisfy these):
+   - For a supplied sample employee and the uploaded company logo, the generated PDF should be pixel-matched (95% visual similarity or better) to the provided reference image.
+   - Bulk upload: successfully generate payslips for a sample CSV of 500 rows and produce a downloadable ZIP with all PDFs, with a maximum of X failures reported (show sample error CSV).
+   - Templates and employee save/load functionality works and pre-populates form correctly.
+   - Role-based access controls enforced; unauthorized users cannot download payslips.
+   - Audit log entries appear for every payslip generation and download action.
+
+10. Deliverables:
+    - Source code repository with clear README, setup, and deployment instructions.
+    - Demo site (staging) or local dev instructions.
+    - Sample CSV template for bulk generation and a sample set of generated PDFs that match the image.
+    - Documentation for admin: how to add company logo, set template fields, map CSV columns, and configure roles.
+    - Unit & integration tests and instructions for running them.
+
+11. Questions for implementer (you may ask, but prefer to start with sensible defaults):
+    - Which exact font was used in the reference image? If unknown, pick the closest match (document chosen font).
+    - Do you want payroll calculations (auto-calc tax/PF) or will all amounts be supplied in the CSV/form? (Default: amounts supplied.)
+    - Preferred hosting (Vercel, AWS, GCP, self-hosted)?
+    - Max expected volume for batch jobs so we can size workers.
+
+Notes for implementer:
+- Prioritize exact PDF visual parity. Use server-side rendering (Headless Chrome) if necessary to match layout and fonts.
+- Provide clear sample file formats and an interactive mapping UI for CSV import.
+- Keep UI simple — HR users should generate a payslip in < 60 seconds with saved templates.
+
+End of prompt.
