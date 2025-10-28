@@ -127,10 +127,11 @@ export default function GeneratePayslip() {
     const payslipData = {
       payslipNumber: `PSL-${Date.now()}`,
       ...formData,
-      totalEarningsFull: totalEarningsFull.toString(),
-      totalEarningsActual: totalEarningsActual.toString(),
-      totalDeductionsActual: totalDeductions.toString(),
-      netPay: netPay.toString(),
+      // FIX: Removed .toString() so these totals are sent as numbers
+      totalEarningsFull: totalEarningsFull,
+      totalEarningsActual: totalEarningsActual,
+      totalDeductionsActual: totalDeductions,
+      netPay: netPay,
     };
 
     generateMutation.mutate({
@@ -306,8 +307,8 @@ export default function GeneratePayslip() {
                 <Separator />
                 <div className="grid grid-cols-3 gap-2 items-center font-medium">
                   <div className="text-sm">Total Earnings</div>
-                  <div className="text-right text-sm">₹{totalEarningsFull.toFixed(0)}</div>
-                  <div className="text-right text-sm">₹{totalEarningsActual.toFixed(0)}</div>
+                  <div className="text-right text-sm">鈧箋totalEarningsFull.toFixed(0)}</div>
+                  <div className="text-right text-sm">鈧箋totalEarningsActual.toFixed(0)}</div>
                 </div>
               </CardContent>
             </Card>
@@ -354,7 +355,7 @@ export default function GeneratePayslip() {
                   <Separator />
                   <div className="flex justify-between items-center font-medium">
                     <div className="text-sm">Total Deductions</div>
-                    <div className="text-sm">₹{totalDeductions.toFixed(0)}</div>
+                    <div className="text-sm">鈧箋totalDeductions.toFixed(0)}</div>
                   </div>
                 </div>
               </CardContent>
@@ -367,16 +368,16 @@ export default function GeneratePayslip() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Total Earnings</span>
-                  <span className="font-medium">₹{totalEarningsActual.toFixed(0)}</span>
+                  <span className="font-medium">鈧箋totalEarningsActual.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Total Deductions</span>
-                  <span className="font-medium">₹{totalDeductions.toFixed(0)}</span>
+                  <span className="font-medium">鈧箋totalDeductions.toFixed(0)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between items-center">
                   <span className="font-semibold">Net Pay</span>
-                  <span className="text-xl font-semibold text-primary">₹{netPay.toFixed(0)}</span>
+                  <span className="text-xl font-semibold text-primary">鈧箋netPay.toFixed(0)}</span>
                 </div>
                 <div className="space-y-2 pt-2">
                   <Label htmlFor="employer-pf" className="text-xs">
